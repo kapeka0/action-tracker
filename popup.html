@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <div id="header">
+      <div id="header-top">
+        <div id="title">Action Tracker</div>
+        <span id="count"></span>
+      </div>
+      <input type="text" id="search" placeholder="Search actions..." />
+    </div>
+    <div id="status"></div>
+    <div id="actions-list"></div>
+    <div id="footer">
+      <button id="copy-all">Copy visible</button>
+      <button id="mark-seen">Mark all seen</button>
+    </div>
+  </div>
+  <div id="toast"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
