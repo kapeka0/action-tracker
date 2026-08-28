@@ -58,26 +58,40 @@ async function handleActionsFound(message, sender) {
   }
 
   const result = await chrome.storage.local.get(storageKey);
-  const stored = result[storageKey] || [];
-  const existingHashes = new Set(stored.map((a) => a.hash));
+  const compacted = compactActions(result[storageKey] || []);
+  const stored = compacted.actions;
+  const existingActions = new Map(
+    stored.map((action) => [getActionIdentity(action), action]),
+  );
 
   let newCount = 0;
+  let hasChanges = compacted.changed;
   const now = Date.now();
 
   for (const action of actions) {
-    if (!existingHashes.has(action.hash)) {
-      stored.push({
+    const identity = getActionIdentity(action);
+    const existing = existingActions.get(identity);
+
+    if (existing) {
+      if (existing.hash !== action.hash) {
+        existing.hash = action.hash;
+        hasChanges = true;
+      }
+    } else {
+      const storedAction = {
         hash: action.hash,
         name: action.name,
         isNew: true,
         firstSeen: now,
-      });
-      existingHashes.add(action.hash);
+      };
+      stored.push(storedAction);
+      existingActions.set(identity, storedAction);
       newCount++;
+      hasChanges = true;
     }
   }
 
-  if (newCount > 0) {
+  if (hasChanges) {
     await chrome.storage.local.set({ [storageKey]: stored });
   }
 
@@ -96,7 +110,42 @@ async function handleActionsFound(message, sender) {
 async function getActionsForDomain(domain) {
   const storageKey = `actions_${domain}`;
   const result = await chrome.storage.local.get(storageKey);
-  return result[storageKey] || [];
+  const compacted = compactActions(result[storageKey] || []);
+
+  if (compacted.changed) {
+    await chrome.storage.local.set({ [storageKey]: compacted.actions });
+  }
+
+  return compacted.actions;
+}
+
+function getActionIdentity(action) {
+  return action.name || action.hash;
+}
+
+function compactActions(actions) {
+  const compacted = [];
+  const byIdentity = new Map();
+  let changed = false;
+
+  for (const action of actions) {
+    const identity = getActionIdentity(action);
+    const existing = byIdentity.get(identity);
+
+    if (!existing) {
+      const storedAction = { ...action };
+      compacted.push(storedAction);
+      byIdentity.set(identity, storedAction);
+      continue;
+    }
+
+    // Storage order follows discovery order, so the last duplicate has the
+    // current build's hash. Keep the original seen state and discovery date.
+    existing.hash = action.hash;
+    changed = true;
+  }
+
+  return { actions: compacted, changed };
 }
 
 async function markOneSeen(domain, hash) {
